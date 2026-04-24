@@ -1,23 +1,31 @@
 package Model;
 
 import java.io.FileNotFoundException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class TripGenerator {
 	public static void main(String[] args) {
-	//	String instancePath = args[0];
-
-	//	ProblemInput problemInput = null;
-		  // Valeur par défaut
-        String instancePath = "test/MCTOPMTWP-1-pr02-out.txt"  ;
+		String instancePath = "test/MCTOPMTWP-1-pr02-out.txt";
 
         // Si un argument est fourni, on le prend
         if (args.length > 0) {
             instancePath = args[0];
         }
 
+		Path resolvedInstancePath = resolveExistingPath(instancePath);
+		if (resolvedInstancePath == null) {
+			System.out.println("Could not find file. " + instancePath + " (chemin introuvable depuis le dossier courant: " +
+				Paths.get("").toAbsolutePath() + ")");
+			System.exit(1);
+		}
+
+		System.out.println("Instance utilisee: " + resolvedInstancePath.toAbsolutePath());
+
         ProblemInput problemInput = null;
 		try {
-			problemInput = ProblemInput.getProblemInputFromFile(instancePath);
+			problemInput = ProblemInput.getProblemInputFromFile(resolvedInstancePath.toString());
 			System.out.println(" file. " + problemInput.getBudgetLimit());
 		} catch (FileNotFoundException ex) {
 			System.out.println("Could not find file. " + ex.getMessage());
@@ -58,5 +66,31 @@ public class TripGenerator {
 		} else {
 			pythonMLRunner.runDefaultScripts(pythonExecutable);
 		}
+	}
+
+	private static Path resolveExistingPath(String rawPath) {
+		Path given = Paths.get(rawPath);
+		if (given.isAbsolute() && Files.exists(given)) {
+			return given;
+		}
+
+		Path[] prefixes = new Path[] {
+			Paths.get(""),
+			Paths.get("."),
+			Paths.get(".."),
+			Paths.get("..", ".."),
+			Paths.get("TOP"),
+			Paths.get("..", "TOP"),
+			Paths.get("..", "..", "TOP")
+		};
+
+		for (Path prefix : prefixes) {
+			Path candidate = prefix.resolve(rawPath).normalize();
+			if (Files.exists(candidate)) {
+				return candidate;
+			}
+		}
+
+		return null;
 	}
 }
