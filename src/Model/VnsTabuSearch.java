@@ -85,7 +85,6 @@ public class VnsTabuSearch {
 	            
 	            // Vérifier la validité et recalculer le score
 	            if (isSolutionValid(candidate)) {
-	                candidate.calculateScore(); // Supposant que cette méthode existe
 	                return candidate;
 	            }
 	        } catch (Exception e) {
