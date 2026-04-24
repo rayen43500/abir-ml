@@ -177,7 +177,7 @@ public class VnsTabuSearch {
 	            // Copier la structure de la tournée
 	            // Cette partie dépend de votre implémentation spécifique
 	        }
-	        dest.calculateScore(); // Recalculer le score
+	        // Le score est maintenu par les opérations internes de Solution.
 	    }
 
 	    /**
@@ -331,7 +331,6 @@ public class VnsTabuSearch {
 	        try {
 	            solution.shakeStep(pos1, 1, TABU_TENURE, 0);
 	            solution.shakeStep(pos2, 1, TABU_TENURE, 0);
-	            solution.calculateScore();
 	            return true;
 	        } catch (Exception e) {
 	            return false;
@@ -342,7 +341,6 @@ public class VnsTabuSearch {
 	        try {
 	            solution.shakeStep(sourcePos, 1, TABU_TENURE, 0);
 	            solution.insertStep();
-	            solution.calculateScore();
 	            return true;
 	        } catch (Exception e) {
 	            return false;
@@ -419,6 +417,87 @@ public class VnsTabuSearch {
 	            default: randomSwapBetweenRoutes(shakenSolution);
 	        }
 	        return shakenSolution;
+	    }
+
+	    private void randomSwapBetweenRoutes(Solution solution) {
+	        int tourCount = problemInput.getTourCount();
+	        if (tourCount < 2) {
+	            return;
+	        }
+
+	        Random rand = new Random();
+	        int route1 = rand.nextInt(tourCount);
+	        int route2 = rand.nextInt(tourCount);
+	        while (route2 == route1) {
+	            route2 = rand.nextInt(tourCount);
+	        }
+
+	        if (solution.getTourSizes()[route1] > 2 && solution.getTourSizes()[route2] > 2) {
+	            int pos1 = 1 + rand.nextInt(solution.getTourSizes()[route1] - 2);
+	            int pos2 = 1 + rand.nextInt(solution.getTourSizes()[route2] - 2);
+	            solution.shakeStep(pos1, 1, TABU_TENURE, 0);
+	            solution.shakeStep(pos2, 1, TABU_TENURE, 0);
+	        }
+	    }
+
+	    private void randomMoveBetweenRoutes(Solution solution) {
+	        int tourCount = problemInput.getTourCount();
+	        if (tourCount < 2) {
+	            return;
+	        }
+
+	        Random rand = new Random();
+	        int sourceRoute = rand.nextInt(tourCount);
+	        int targetRoute = rand.nextInt(tourCount);
+	        while (targetRoute == sourceRoute) {
+	            targetRoute = rand.nextInt(tourCount);
+	        }
+
+	        if (solution.getTourSizes()[sourceRoute] > 2) {
+	            int posSource = 1 + rand.nextInt(solution.getTourSizes()[sourceRoute] - 2);
+	            solution.shakeStep(posSource, 1, TABU_TENURE, 0);
+	            solution.insertStep();
+	        }
+	    }
+
+	    private void destroyAndRepair(Solution solution, double destructionRate) {
+	        int totalPOIs = countAssignedPOIs(solution);
+	        int toDestroy = Math.max(1, (int) (totalPOIs * destructionRate));
+
+	        Random rand = new Random();
+	        for (int i = 0; i < toDestroy; i++) {
+	            int tour = rand.nextInt(problemInput.getTourCount());
+	            if (solution.getTourSizes()[tour] > 2) {
+	                int pos = 1 + rand.nextInt(solution.getTourSizes()[tour] - 2);
+	                solution.shakeStep(pos, 1, TABU_TENURE, 0);
+	            }
+	        }
+
+	        while (solution.notStuckInLocalOptimum()) {
+	            solution.insertStep();
+	        }
+	    }
+
+	    private void combinedShaking(Solution solution) {
+	        Random rand = new Random();
+	        double choice = rand.nextDouble();
+
+	        if (choice < 0.33) {
+	            randomSwapBetweenRoutes(solution);
+	        } else if (choice < 0.66) {
+	            randomMoveBetweenRoutes(solution);
+	        } else {
+	            destroyAndRepair(solution, 0.2);
+	        }
+	    }
+
+	    private int countAssignedPOIs(Solution solution) {
+	        int count = 0;
+	        int[] tourSizes = solution.getTourSizes();
+	        for (int tour = 0; tour < problemInput.getTourCount(); tour++) {
+	            count += Math.max(0, tourSizes[tour] - 2);
+	        }
+	        return count;
 	    }
 
 	    // Les autres méthodes (randomSwapBetweenRoutes, etc.) restent inchangées
