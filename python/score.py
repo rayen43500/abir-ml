@@ -10,9 +10,16 @@ import math
 import numpy as np
 from collections import defaultdict, deque
 import random
-import torch
-import torch.nn as nn
-import torch.optim as optim
+try:
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    TORCH_AVAILABLE = True
+except ImportError:
+    torch = None
+    nn = None
+    optim = None
+    TORCH_AVAILABLE = False
 
 # ============================================================
 # VRAI MACHINE LEARNING avec RandomForest
@@ -52,85 +59,119 @@ class VraiML:
 # DEEP Q-NETWORK (DQN)
 # ============================================================
 
-class QNetwork(nn.Module):
-    def __init__(self, input_dim, output_dim):
-        super(QNetwork, self).__init__()
-        self.fc = nn.Sequential(
-            nn.Linear(input_dim, 64),
-            nn.ReLU(),
-            nn.Linear(64, 64),
-            nn.ReLU(),
-            nn.Linear(64, output_dim)
-        )
+if TORCH_AVAILABLE:
+    class QNetwork(nn.Module):
+        def __init__(self, input_dim, output_dim):
+            super(QNetwork, self).__init__()
+            self.fc = nn.Sequential(
+                nn.Linear(input_dim, 64),
+                nn.ReLU(),
+                nn.Linear(64, 64),
+                nn.ReLU(),
+                nn.Linear(64, output_dim)
+            )
 
-    def forward(self, x):
-        return self.fc(x)
+        def forward(self, x):
+            return self.fc(x)
 
-class VraiDQN:
-    """Deep Q-Network Agent"""
 
-    def __init__(self, state_dim, action_dim):
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.memory = deque(maxlen=2000)
-        self.gamma = 0.95
-        self.epsilon = 1.0
-        self.epsilon_min = 0.05
-        self.epsilon_decay = 0.995
-        self.learning_rate = 0.001
-        
-        self.model = QNetwork(state_dim, action_dim)
-        self.target_model = QNetwork(state_dim, action_dim)
-        self.update_target_model()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
-        self.criterion = nn.MSELoss()
+    class VraiDQN:
+        """Deep Q-Network Agent"""
 
-    def update_target_model(self):
-        self.target_model.load_state_dict(self.model.state_dict())
+        def __init__(self, state_dim, action_dim):
+            self.state_dim = state_dim
+            self.action_dim = action_dim
+            self.memory = deque(maxlen=2000)
+            self.gamma = 0.95
+            self.epsilon = 1.0
+            self.epsilon_min = 0.05
+            self.epsilon_decay = 0.995
+            self.learning_rate = 0.001
 
-    def memoriser(self, state, action, reward, next_state, done):
-        self.memory.append((state, action, reward, next_state, done))
+            self.model = QNetwork(state_dim, action_dim)
+            self.target_model = QNetwork(state_dim, action_dim)
+            self.update_target_model()
+            self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
+            self.criterion = nn.MSELoss()
 
-    def choisir_action(self, state, villes_valides=None):
-        if np.random.rand() <= self.epsilon:
+        def update_target_model(self):
+            self.target_model.load_state_dict(self.model.state_dict())
+
+        def memoriser(self, state, action, reward, next_state, done):
+            self.memory.append((state, action, reward, next_state, done))
+
+        def choisir_action(self, state, villes_valides=None):
+            if np.random.rand() <= self.epsilon:
+                if villes_valides:
+                    return random.choice(villes_valides)
+                return random.randrange(self.action_dim)
+
+            q_values = self.predict_q_values(state)
+
+            if villes_valides:
+                mask = np.full(self.action_dim, -np.inf)
+                mask[villes_valides] = 0
+                q_values += mask
+
+            return int(np.argmax(q_values))
+
+        def entrainer_batch(self, batch_size):
+            if len(self.memory) < batch_size:
+                return
+
+            minibatch = random.sample(self.memory, batch_size)
+            for state, action, reward, next_state, done in minibatch:
+                target = reward
+                if not done:
+                    next_state_tensor = torch.FloatTensor(next_state).unsqueeze(0)
+                    target = (reward + self.gamma * torch.max(self.target_model(next_state_tensor)).item())
+
+                state_tensor = torch.FloatTensor(state).unsqueeze(0)
+                target_f = self.model(state_tensor)
+                target_f[0][action] = target
+
+                self.optimizer.zero_grad()
+                output = self.model(state_tensor)
+                loss = self.criterion(output, target_f)
+                loss.backward()
+                self.optimizer.step()
+
+            if self.epsilon > self.epsilon_min:
+                self.epsilon *= self.epsilon_decay
+
+        def predict_q_values(self, state):
+            state_tensor = torch.FloatTensor(state).unsqueeze(0)
+            with torch.no_grad():
+                return self.model(state_tensor).numpy()[0]
+else:
+    class VraiDQN:
+        """Fallback sans PyTorch: heuristique simple pour garder l'execution."""
+
+        def __init__(self, state_dim, action_dim):
+            self.state_dim = state_dim
+            self.action_dim = action_dim
+            self.memory = deque(maxlen=2000)
+            self.epsilon = 1.0
+            self.epsilon_min = 0.05
+            self.epsilon_decay = 0.995
+
+        def update_target_model(self):
+            return
+
+        def memoriser(self, state, action, reward, next_state, done):
+            self.memory.append((state, action, reward, next_state, done))
+
+        def choisir_action(self, state, villes_valides=None):
             if villes_valides:
                 return random.choice(villes_valides)
             return random.randrange(self.action_dim)
-        
-        state_tensor = torch.FloatTensor(state).unsqueeze(0)
-        with torch.no_grad():
-            q_values = self.model(state_tensor).numpy()[0]
-        
-        if villes_valides:
-            mask = np.full(self.action_dim, -np.inf)
-            mask[villes_valides] = 0
-            q_values += mask
-            
-        return int(np.argmax(q_values))
 
-    def entrainer_batch(self, batch_size):
-        if len(self.memory) < batch_size:
-            return
-        
-        minibatch = random.sample(self.memory, batch_size)
-        for state, action, reward, next_state, done in minibatch:
-            target = reward
-            if not done:
-                next_state_tensor = torch.FloatTensor(next_state).unsqueeze(0)
-                target = (reward + self.gamma * torch.max(self.target_model(next_state_tensor)).item())
-            
-            state_tensor = torch.FloatTensor(state).unsqueeze(0)
-            target_f = self.model(state_tensor)
-            target_f[0][action] = target
-            
-            self.optimizer.zero_grad()
-            output = self.model(state_tensor)
-            loss = self.criterion(output, target_f)
-            loss.backward()
-            self.optimizer.step()
+        def entrainer_batch(self, batch_size):
+            if self.epsilon > self.epsilon_min:
+                self.epsilon *= self.epsilon_decay
 
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        def predict_q_values(self, state):
+            return np.zeros(self.action_dim, dtype=float)
 
 
 # ============================================================
@@ -241,6 +282,8 @@ def main():
     print("="*60)
     print("HYBRIDE RANDOM FOREST + DEEP Q-NETWORK (DQN)")
     print("="*60)
+    if not TORCH_AVAILABLE:
+        print("[INFO] PyTorch non installe: execution en mode fallback sans DQN profond.")
 
     nom_fichier = "MCTOPMTWP-4-pr09-out.txt"
     nb_tours, budget, patterns, max_places_day, pois = charger_benchmark(nom_fichier)
@@ -329,8 +372,7 @@ def main():
         state = extraire_features(pattern, villes[0], {'budget_restant': budget_reel, 'tour_actuel': t_id})
         
         v_ml, conf_ml = ml_model.predire(state)
-        with torch.no_grad():
-            q_values = dqn_agent.model(torch.FloatTensor(state).unsqueeze(0)).numpy()[0]
+        q_values = dqn_agent.predict_q_values(state)
         v_rl = np.argmax(q_values)
         
         q_norm = (q_values - np.min(q_values)) / (np.max(q_values) - np.min(q_values) + 1e-6)

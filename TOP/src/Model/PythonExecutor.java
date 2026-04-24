@@ -5,6 +5,8 @@ package Model;
 	import java.io.BufferedReader;
 	import java.io.IOException;
 	import java.io.InputStreamReader;
+	import java.util.ArrayList;
+	import java.util.List;
 	import java.nio.charset.StandardCharsets;
 	import java.nio.file.Path;
 
@@ -51,7 +53,7 @@ package Model;
 	    public ExecutionResult executeScript(String pythonExecutable, String pythonScriptPath, Path workingDirectory) {
 	        long start = System.currentTimeMillis();
 	        try {
-	            ProcessBuilder pb = new ProcessBuilder(pythonExecutable, pythonScriptPath);
+	            ProcessBuilder pb = new ProcessBuilder(buildCommand(pythonExecutable, pythonScriptPath));
 	            if (workingDirectory != null) {
 	                pb.directory(workingDirectory.toFile());
 	            }
@@ -78,5 +80,27 @@ package Model;
 	            return new ExecutionResult(-1, "Erreur lors de l'execution Python: " + e.getMessage(), pythonScriptPath, duration);
 	        }
 	    }
+
+	    private List<String> buildCommand(String pythonExecutable, String pythonScriptPath) {
+	        List<String> cmd = new ArrayList<>();
+	        if (pythonExecutable != null) {
+	            String trimmed = pythonExecutable.trim();
+	            if (!trimmed.isEmpty()) {
+	                String[] parts = trimmed.split("\\s+");
+	                for (String part : parts) {
+	                    if (!part.isEmpty()) {
+	                        cmd.add(part);
+	                    }
+	                }
+	            }
+	        }
+
+	        if (cmd.isEmpty()) {
+	            cmd.add("python");
+	        }
+
+	        cmd.add(pythonScriptPath);
+	        return cmd;
+	}
 	
 	}

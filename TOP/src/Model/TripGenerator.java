@@ -51,7 +51,7 @@ public class TripGenerator {
 			System.out.println(bestSolution);
 		}
 
-		String pythonExecutable = "python";
+		String pythonExecutable = "py -3.11";
 		PythonMLRunner pythonMLRunner = new PythonMLRunner();
 
 		if (args.length > 1) {
