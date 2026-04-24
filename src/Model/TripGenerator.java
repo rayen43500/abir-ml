@@ -61,10 +61,27 @@ public class TripGenerator {
 				pythonMLRunner.runAndPrint(secondArg, pythonExecutable);
 			} else {
 				pythonExecutable = secondArg;
-				pythonMLRunner.runDefaultScripts(pythonExecutable);
+				runDefaultPythonScripts(pythonMLRunner, pythonExecutable);
 			}
 		} else {
-			pythonMLRunner.runDefaultScripts(pythonExecutable);
+			runDefaultPythonScripts(pythonMLRunner, pythonExecutable);
+		}
+	}
+
+	private static void runDefaultPythonScripts(PythonMLRunner pythonMLRunner, String pythonExecutable) {
+		Path scoreScript = resolveExistingPath("python/score.py");
+		Path villeScript = resolveExistingPath("python/ville.py");
+
+		if (scoreScript != null) {
+			pythonMLRunner.runAndPrint(scoreScript.toString(), pythonExecutable);
+		} else {
+			System.out.println("[Python] Script introuvable: python/score.py");
+		}
+
+		if (villeScript != null) {
+			pythonMLRunner.runAndPrint(villeScript.toString(), pythonExecutable);
+		} else {
+			System.out.println("[Python] Script introuvable: python/ville.py");
 		}
 	}
 
