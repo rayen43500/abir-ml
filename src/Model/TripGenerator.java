@@ -43,12 +43,20 @@ public class TripGenerator {
 			System.out.println(bestSolution);
 		}
 
-		String defaultPythonScriptPath = "";
-		String pythonScriptPath = args.length > 1 ? args[1] : defaultPythonScriptPath;
-		if (!pythonScriptPath.isBlank()) {
-			String pythonExecutable = args.length > 2 ? args[2] : "python";
-			PythonMLRunner pythonMLRunner = new PythonMLRunner();
-			pythonMLRunner.runAndPrint(pythonScriptPath, pythonExecutable);
+		String pythonExecutable = "python";
+		PythonMLRunner pythonMLRunner = new PythonMLRunner();
+
+		if (args.length > 1) {
+			String secondArg = args[1];
+			if (secondArg.endsWith(".py")) {
+				pythonExecutable = args.length > 2 ? args[2] : pythonExecutable;
+				pythonMLRunner.runAndPrint(secondArg, pythonExecutable);
+			} else {
+				pythonExecutable = secondArg;
+				pythonMLRunner.runDefaultScripts(pythonExecutable);
+			}
+		} else {
+			pythonMLRunner.runDefaultScripts(pythonExecutable);
 		}
 	}
 }
